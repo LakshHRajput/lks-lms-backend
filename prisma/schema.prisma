@@ -1,0 +1,458 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id               Int             @id @default(autoincrement())
+  name             String
+  email            String          @unique
+  password         String
+  role             UserRole        @default(STUDENT)
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  avatar           String?
+  emailVerified    Boolean         @default(false)
+  lastLoginAt      DateTime?
+  phone            String?
+  attendanceMarked Attendance[]    @relation("AttendanceMarkedBy")
+  createdCourses   Course[]        @relation("CourseCreatedBy")
+  parentProfile    ParentProfile?
+  payments         Payment[]       @relation("PaymentCreatedBy")
+  refreshTokens    RefreshToken[]
+  studentProfile   StudentProfile?
+  teacherProfile   TeacherProfile?
+  createdTests     Test[]          @relation("TestCreatedBy")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique
+  userId    Int
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model StudentProfile {
+  id             Int               @id @default(autoincrement())
+  userId         Int               @unique
+  studentCode    String            @unique
+  dateOfBirth    DateTime?
+  gender         Gender?
+  address        String?
+  city           String?
+  state          String?
+  pincode        String?
+  admissionDate  DateTime?
+  className      String?
+  section        String?
+  rollNumber     String?
+  attendance     Attendance[]
+  enrollments    Enrollment[]
+  examAttempts   ExamAttempt[]
+  feeRecords     Fee[]
+  parentStudents ParentStudent[]
+  answers        StudentAnswer[]
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress       StudentProgress[]
+
+  @@index([className])
+  @@index([section])
+  @@map("student_profiles")
+}
+
+model TeacherProfile {
+  id             Int              @id @default(autoincrement())
+  userId         Int              @unique
+  employeeCode   String           @unique
+  qualification  String?
+  specialization String?
+  joiningDate    DateTime?
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjects       TeacherSubject[]
+
+  @@map("teacher_profiles")
+}
+
+model ParentProfile {
+  id         Int             @id @default(autoincrement())
+  userId     Int             @unique
+  occupation String?
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  children   ParentStudent[]
+
+  @@map("parent_profiles")
+}
+
+model ParentStudent {
+  id           Int            @id @default(autoincrement())
+  parentId     Int
+  studentId    Int
+  relationship String?
+  parent       ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([studentId])
+  @@map("parent_students")
+}
+
+model Course {
+  id          Int          @id @default(autoincrement())
+  name        String
+  slug        String       @unique
+  description String?      @db.Text
+  status      CourseStatus @default(ACTIVE)
+  createdById Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  createdBy   User         @relation("CourseCreatedBy", fields: [createdById], references: [id])
+  enrollments Enrollment[]
+  subjects    Subject[]
+
+  @@index([status])
+  @@index([createdById], map: "courses_createdById_fkey")
+  @@map("courses")
+}
+
+model Subject {
+  id          Int              @id @default(autoincrement())
+  courseId    Int
+  name        String
+  slug        String
+  description String?          @db.Text
+  status      ContentStatus    @default(PUBLISHED)
+  chapters    Chapter[]
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teachers    TeacherSubject[]
+  tests       Test[]
+
+  @@unique([courseId, slug])
+  @@index([courseId])
+  @@map("subjects")
+}
+
+model Chapter {
+  id          Int               @id @default(autoincrement())
+  subjectId   Int
+  title       String
+  slug        String
+  description String?           @db.Text
+  order       Int               @default(0)
+  status      ContentStatus     @default(PUBLISHED)
+  subject     Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  progress    StudentProgress[]
+  tests       Test[]
+  videos      Video[]
+
+  @@unique([subjectId, slug])
+  @@index([subjectId])
+  @@map("chapters")
+}
+
+model Video {
+  id          Int           @id @default(autoincrement())
+  chapterId   Int
+  title       String
+  description String?       @db.Text
+  videoUrl    String
+  thumbnail   String?
+  duration    Int?
+  order       Int           @default(0)
+  status      ContentStatus @default(PUBLISHED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  chapter     Chapter       @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+  @@map("videos")
+}
+
+model Note {
+  id          Int           @id @default(autoincrement())
+  chapterId   Int
+  title       String
+  description String?       @db.Text
+  fileUrl     String?
+  content     String?       @db.LongText
+  order       Int           @default(0)
+  status      ContentStatus @default(PUBLISHED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  chapter     Chapter       @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+  @@map("notes")
+}
+
+model Enrollment {
+  id         Int            @id @default(autoincrement())
+  studentId  Int
+  courseId   Int
+  enrolledAt DateTime       @default(now())
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+model TeacherSubject {
+  id        Int            @id @default(autoincrement())
+  teacherId Int
+  subjectId Int
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId])
+  @@index([subjectId], map: "teacher_subjects_subjectId_fkey")
+  @@map("teacher_subjects")
+}
+
+model Test {
+  id          Int           @id @default(autoincrement())
+  subjectId   Int
+  chapterId   Int?
+  createdById Int
+  title       String
+  description String?       @db.Text
+  duration    Int?
+  totalMarks  Int
+  status      ExamStatus    @default(DRAFT)
+  startAt     DateTime?
+  endAt       DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  attempts    ExamAttempt[]
+  questions   Question[]
+  chapter     Chapter?      @relation(fields: [chapterId], references: [id])
+  createdBy   User          @relation("TestCreatedBy", fields: [createdById], references: [id])
+  subject     Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([subjectId])
+  @@index([chapterId])
+  @@index([createdById], map: "tests_createdById_fkey")
+  @@map("tests")
+}
+
+model Question {
+  id            Int              @id @default(autoincrement())
+  testId        Int
+  question      String           @db.Text
+  type          QuestionType     @default(MCQ)
+  marks         Int              @default(1)
+  negativeMarks Int              @default(0)
+  order         Int              @default(0)
+  options       QuestionOption[]
+  test          Test             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers       StudentAnswer[]
+
+  @@index([testId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         Int             @id @default(autoincrement())
+  questionId Int
+  optionText String          @db.Text
+  isCorrect  Boolean         @default(false)
+  order      Int             @default(0)
+  question   Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers    StudentAnswer[]
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model ExamAttempt {
+  id          Int             @id @default(autoincrement())
+  testId      Int
+  studentId   Int
+  startedAt   DateTime        @default(now())
+  submittedAt DateTime?
+  status      AttemptStatus   @default(IN_PROGRESS)
+  score       Float?
+  totalMarks  Float?
+  student     StudentProfile  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  test        Test            @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers     StudentAnswer[]
+
+  @@unique([testId, studentId])
+  @@index([testId])
+  @@index([studentId])
+  @@map("exam_attempts")
+}
+
+model StudentAnswer {
+  id               Int             @id @default(autoincrement())
+  attemptId        Int
+  questionId       Int
+  studentId        Int
+  selectedOptionId Int?
+  answerText       String?         @db.Text
+  isCorrect        Boolean?
+  marks            Float?
+  answeredAt       DateTime        @default(now())
+  attempt          ExamAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption   QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+  student          StudentProfile  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([studentId])
+  @@index([questionId], map: "student_answers_questionId_fkey")
+  @@index([selectedOptionId], map: "student_answers_selectedOptionId_fkey")
+  @@map("student_answers")
+}
+
+model Attendance {
+  id         Int              @id @default(autoincrement())
+  studentId  Int
+  markedById Int
+  date       DateTime
+  status     AttendanceStatus
+  remarks    String?
+  markedBy   User             @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  student    StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([date])
+  @@index([markedById], map: "attendance_markedById_fkey")
+  @@map("attendance")
+}
+
+model Fee {
+  id         Int            @id @default(autoincrement())
+  studentId  Int
+  title      String
+  amount     Decimal        @db.Decimal(10, 2)
+  paidAmount Decimal        @default(0.00) @db.Decimal(10, 2)
+  dueDate    DateTime?
+  status     FeeStatus      @default(PENDING)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  payments   Payment[]
+
+  @@index([studentId])
+  @@index([status])
+  @@map("fees")
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  feeId         Int
+  createdById   Int
+  amount        Decimal       @db.Decimal(10, 2)
+  transactionId String?       @unique
+  paymentMethod String?
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  createdBy     User          @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  fee           Fee           @relation(fields: [feeId], references: [id], onDelete: Cascade)
+
+  @@index([feeId])
+  @@index([status])
+  @@index([createdById], map: "payments_createdById_fkey")
+  @@map("payments")
+}
+
+model StudentProgress {
+  id             Int            @id @default(autoincrement())
+  studentId      Int
+  chapterId      Int
+  completed      Boolean        @default(false)
+  progress       Int            @default(0)
+  lastAccessedAt DateTime?
+  chapter        Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  student        StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, chapterId])
+  @@index([chapterId])
+  @@map("student_progress")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum CourseStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+  LONG_ANSWER
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+}
+
+enum FeeStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
