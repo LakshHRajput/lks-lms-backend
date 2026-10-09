@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import prisma from './src/config/database';
 
-const api = 'http://localhost:5000/api/v1';
+const api = 'https://lks-lms-backend.onrender.com';
 
 const adminRes = await fetch(`${api}/auth/login`, {
   method: 'POST',
