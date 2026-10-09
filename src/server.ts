@@ -7,27 +7,30 @@ const startServer = async (): Promise<void> => {
     await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
 
+
     console.log("MySQL database connected successfully");
 
-    app.listen(env.PORT, () => {
-      console.log(
-        `LKS LMS Backend running on http://localhost:${env.PORT}`
-      );
+    const port = Number(process.env.PORT) || env.PORT;
+
+    app.listen(port, "0.0.0.0", () => {
+      console.log(`LKS LMS Backend running on port ${port} `);
     });
+
+
   } catch (error) {
     console.error("Failed to start server:", error);
 
-    await prisma.$disconnect();
 
+    await prisma.$disconnect();
     process.exit(1);
+
   }
 };
 
 const shutdown = async (signal: string): Promise<void> => {
-  console.log(`${signal} received. Shutting down gracefully...`);
+  console.log(`${signal} received.Shutting down gracefully...`);
 
   await prisma.$disconnect();
-
   process.exit(0);
 };
 
